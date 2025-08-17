@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>League Domination Engine A</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+      :root {
+        --bg: #f5f5f5;
+        --text: #222;
+        --card-bg: #fff;
+        --accent: #1e88e5;
+      }
+      body.dark {
+        --bg: #121212;
+        --text: #eee;
+        --card-bg: #1e1e1e;
+        --accent: #90caf9;
+      }
+      body {
+        font-family: "Inter", sans-serif;
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+      }
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem;
+        background: var(--card-bg);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+      h1 {
+        font-size: 1.5rem;
+        margin: 0;
+      }
+      button.toggle {
+        padding: 0.5rem 1rem;
+        background: var(--accent);
+        border: none;
+        color: #fff;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      main {
+        display: grid;
+        gap: 1rem;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        padding: 1rem;
+      }
+      section {
+        background: var(--card-bg);
+        border-radius: 8px;
+        padding: 1rem;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+      }
+      section h2 {
+        margin-top: 0;
+        font-size: 1.2rem;
+        color: var(--accent);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+      }
+      th,
+      td {
+        padding: 0.25rem 0.5rem;
+      }
+      th {
+        text-align: left;
+        border-bottom: 1px solid #ccc;
+      }
+      tr:nth-child(even) {
+        background: rgba(0, 0, 0, 0.02);
+      }
+      .standings-avatar {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        margin-right: 4px;
+        vertical-align: middle;
+      }
+      .scouting-card {
+        display: flex;
+        align-items: center;
+        margin-bottom: 0.5rem;
+      }
+      .scouting-card img {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        margin-right: 0.5rem;
+      }
+      @media (max-width: 600px) {
+        header {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+        button.toggle {
+          margin-top: 0.5rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>League Domination Engine A</h1>
+      <button class="toggle" id="darkToggle">Toggle Dark Mode</button>
+    </header>
+    <main>
+      <section id="standings">
+        <h2>Live Standings</h2>
+        <table id="standingsTable"></table>
+      </section>
+      <section id="scores">
+        <h2>Scores - Week <span id="currentWeek"></span></h2>
+        <div id="scoreboard"></div>
+      </section>
+      <section id="power">
+        <h2>League Power Pulse</h2>
+        <ul id="powerList"></ul>
+      </section>
+      <section id="trade">
+        <h2>Trade Analyzer</h2>
+        <div>
+          <select id="player1"></select>
+          <select id="player2"></select>
+          <button id="analyzeTrade">Analyze</button>
+        </div>
+        <p id="tradeResult"></p>
+      </section>
+      <section id="momentum">
+        <h2>Matchup Momentum</h2>
+        <canvas id="momentumChart" height="200"></canvas>
+      </section>
+      <section id="waivers">
+        <h2>Waiver Wire Genius</h2>
+        <ul id="waiverList"></ul>
+      </section>
+      <section id="scouting">
+        <h2>Manager Scouting Reports</h2>
+        <div id="scoutingReports"></div>
+      </section>
+      <section id="trash">
+        <h2>Trash Talk Generator</h2>
+        <button id="generateTrash">Generate</button>
+        <p id="trashTalk"></p>
+      </section>
+    </main>
+    <script>
+      const LEAGUE_ID = "1220502462390083584";
+      const sampleUsers = [
+        { user_id: "1", display_name: "Alice", avatar: "" },
+        { user_id: "2", display_name: "Bob", avatar: "" },
+      ];
+      const sampleRosters = [
+        {
+          roster_id: 1,
+          owner_id: "1",
+          settings: { wins: 1, losses: 0, fpts: 120 },
+        },
+        {
+          roster_id: 2,
+          owner_id: "2",
+          settings: { wins: 0, losses: 1, fpts: 95 },
+        },
+      ];
+      const sampleMatchups = [
+        { matchup_id: 1, roster_id: 1, points: 120 },
+        { matchup_id: 1, roster_id: 2, points: 95 },
+      ];
+      const sampleTransactions = [];
+      const sampleTrending = [
+        { player_id: "p1", count: 100 },
+        { player_id: "p2", count: 80 },
+      ];
+      const samplePlayers = {
+        "Player A": { fp: 100, ktc: 5000 },
+        "Player B": { fp: 90, ktc: 4800 },
+        "Player C": { fp: 70, ktc: 4500 },
+      };
+      const trashLines = [
+        "Your lineup is softer than Charmin.",
+        "Did you auto-draft that roster?",
+        "Even the refs can score more than you.",
+      ];
+
+      const darkToggle = document.getElementById("darkToggle");
+      darkToggle.addEventListener("click", () => {
+        document.body.classList.toggle("dark");
+      });
+
+      async function fetchData(url, sample) {
+        try {
+          const res = await fetch(url);
+          if (!res.ok) throw new Error("Network");
+          return await res.json();
+        } catch (e) {
+          console.warn("Using sample for", url);
+          return sample;
+        }
+      }
+
+      async function init() {
+        const state = await fetchData("https://api.sleeper.app/v1/state/nfl", {
+          week: 1,
+        });
+        document.getElementById("currentWeek").textContent = state.week;
+        const [
+          users,
+          rosters,
+          matchups,
+          transactions,
+          trending,
+        ] = await Promise.all([
+          fetchData(
+            `https://api.sleeper.app/v1/league/${LEAGUE_ID}/users`,
+            sampleUsers
+          ),
+          fetchData(
+            `https://api.sleeper.app/v1/league/${LEAGUE_ID}/rosters`,
+            sampleRosters
+          ),
+          fetchData(
+            `https://api.sleeper.app/v1/league/${LEAGUE_ID}/matchups/${state.week}`,
+            sampleMatchups
+          ),
+          fetchData(
+            `https://api.sleeper.app/v1/league/${LEAGUE_ID}/transactions/${state.week}`,
+            sampleTransactions
+          ),
+          fetchData(
+            "https://api.sleeper.app/v1/players/nfl/trending/add",
+            sampleTrending
+          ),
+        ]);
+
+        renderStandings(users, rosters);
+        renderScores(users, rosters, matchups);
+        renderPowerPulse(users, rosters);
+        renderTradeAnalyzer();
+        renderMomentum();
+        renderWaivers(trending);
+        renderScouting(users, rosters);
+        setupTrashTalk(users);
+      }
+
+      function renderStandings(users, rosters) {
+        const table = document.getElementById("standingsTable");
+        table.innerHTML = "<tr><th>Team</th><th>W-L</th><th>PF</th></tr>";
+        const userMap = Object.fromEntries(users.map((u) => [u.user_id, u]));
+        rosters.sort(
+          (a, b) =>
+            b.settings.wins - a.settings.wins ||
+            b.settings.fpts - a.settings.fpts
+        );
+        rosters.forEach((r) => {
+          const u = userMap[r.owner_id];
+          const avatar = u?.avatar
+            ? `https://sleepercdn.com/avatars/${u.avatar}`
+            : "";
+          const row = document.createElement("tr");
+          row.innerHTML = `<td><img class="standings-avatar" src="${avatar}" alt=""/>${
+            u?.display_name || "Unknown"
+          }</td><td>${r.settings.wins}-${
+            r.settings.losses
+          }</td><td>${r.settings.fpts.toFixed(1)}</td>`;
+          table.appendChild(row);
+        });
+      }
+
+      function renderScores(users, rosters, matchups) {
+        const container = document.getElementById("scoreboard");
+        container.innerHTML = "";
+        const userMap = Object.fromEntries(users.map((u) => [u.user_id, u]));
+        const rosterMap = Object.fromEntries(
+          rosters.map((r) => [r.roster_id, r])
+        );
+        const groups = {};
+        matchups.forEach((m) => {
+          groups[m.matchup_id] = groups[m.matchup_id] || [];
+          groups[m.matchup_id].push(m);
+        });
+        Object.values(groups).forEach((g) => {
+          const div = document.createElement("div");
+          const home = rosterMap[g[0].roster_id];
+          const away = rosterMap[g[1].roster_id];
+          const homeUser = userMap[home.owner_id];
+          const awayUser = userMap[away.owner_id];
+          div.innerHTML = `${homeUser.display_name} ${g[0].points.toFixed(
+            1
+          )} - ${g[1].points.toFixed(1)} ${awayUser.display_name}`;
+          container.appendChild(div);
+        });
+      }
+
+      function renderPowerPulse(users, rosters) {
+        const list = document.getElementById("powerList");
+        list.innerHTML = "";
+        const userMap = Object.fromEntries(users.map((u) => [u.user_id, u]));
+        const ranks = rosters
+          .map((r) => {
+            const power = r.settings.wins * 2 + r.settings.fpts / 100;
+            return { name: userMap[r.owner_id].display_name, power };
+          })
+          .sort((a, b) => b.power - a.power);
+        ranks.forEach((r, i) => {
+          const li = document.createElement("li");
+          li.textContent = `#${i + 1} ${r.name} (${r.power.toFixed(2)})`;
+          list.appendChild(li);
+        });
+      }
+
+      function renderTradeAnalyzer() {
+        const p1 = document.getElementById("player1");
+        const p2 = document.getElementById("player2");
+        Object.keys(samplePlayers).forEach((name) => {
+          const opt1 = document.createElement("option");
+          opt1.value = name;
+          opt1.textContent = name;
+          p1.appendChild(opt1);
+          const opt2 = document.createElement("option");
+          opt2.value = name;
+          opt2.textContent = name;
+          p2.appendChild(opt2.cloneNode(true));
+        });
+        document
+          .getElementById("analyzeTrade")
+          .addEventListener("click", () => {
+            const a = samplePlayers[p1.value];
+            const b = samplePlayers[p2.value];
+            const scoreA = a.fp + a.ktc / 100; // simple formula
+            const scoreB = b.fp + b.ktc / 100;
+            const res =
+              scoreA > scoreB
+                ? `${p1.value} wins`
+                : scoreA < scoreB
+                ? `${p2.value} wins`
+                : "Even trade";
+            document.getElementById("tradeResult").textContent = res;
+          });
+      }
+
+      function renderMomentum() {
+        const ctx = document.getElementById("momentumChart").getContext("2d");
+        new Chart(ctx, {
+          type: "line",
+          data: {
+            labels: Array.from({ length: 10 }, (_, i) => i + 1),
+            datasets: [
+              {
+                label: "Win %",
+                data: Array.from({ length: 10 }, () =>
+                  Math.floor(Math.random() * 100)
+                ),
+                borderColor: "#4caf50",
+                fill: false,
+              },
+            ],
+          },
+          options: { scales: { y: { beginAtZero: true, max: 100 } } },
+        });
+      }
+
+      function renderWaivers(trending) {
+        const list = document.getElementById("waiverList");
+        list.innerHTML = "";
+        trending.slice(0, 5).forEach((p) => {
+          const li = document.createElement("li");
+          li.textContent = `${p.player_id} (${p.count} adds)`;
+          list.appendChild(li);
+        });
+      }
+
+      function renderScouting(users, rosters) {
+        const container = document.getElementById("scoutingReports");
+        const userMap = Object.fromEntries(users.map((u) => [u.user_id, u]));
+        rosters.forEach((r) => {
+          const u = userMap[r.owner_id];
+          const avatar = u?.avatar
+            ? `https://sleepercdn.com/avatars/${u.avatar}`
+            : "";
+          const card = document.createElement("div");
+          card.className = "scouting-card";
+          card.innerHTML = `<img src="${avatar}" alt=""/> <div><strong>${
+            u.display_name
+          }</strong><br/>PF: ${r.settings.fpts.toFixed(1)} | Record: ${
+            r.settings.wins
+          }-${r.settings.losses}</div>`;
+          container.appendChild(card);
+        });
+      }
+
+      function setupTrashTalk(users) {
+        const userNames = users.map((u) => u.display_name);
+        document
+          .getElementById("generateTrash")
+          .addEventListener("click", () => {
+            const line =
+              trashLines[Math.floor(Math.random() * trashLines.length)];
+            const opponent =
+              userNames[Math.floor(Math.random() * userNames.length)];
+            document.getElementById(
+              "trashTalk"
+            ).textContent = `${opponent}, ${line}`;
+          });
+      }
+
+      init();
+    </script>
+  </body>
+</html>
